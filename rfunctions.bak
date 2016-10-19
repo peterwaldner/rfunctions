@@ -1,0 +1,16 @@
+####################################################
+# Include all R-Functions in LWF Auswertungen
+
+# Directory with R-Functions
+rpath="O:/LWF/Auswertungen/RFunctions/";
+
+rfunctions=c("means","sorts","n.obs","plotby",
+   "prefix","sufix","suffix","rename",
+   "sufixer","renamer","sign1","rkt","transform_dates","subsets");
+   
+for (rfunction in rfunctions)
+{
+ source(paste(rpath,rfunction,".r",sep=""))
+}
+
+

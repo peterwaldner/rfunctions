@@ -1,0 +1,917 @@
+###############################################################################
+# plotby - Plotting xy diagrams from a dataframe
+#
+# Features
+#   one to multi Y-Variables
+#   a legend entry per l-Variable (and Y-Variable)
+#   a panel per p-Variable
+#   one page per by-Variable
+#   type (line/point) depending on s-Variable
+#   creating png-Files
+# 
+# Syntax
+#   plotby(dataframe,xvar,yvars,lvar,byvar,pvar,svar,type,lty,pch=pch,colorlist,
+#          plottitle,xlab,ylab,ltitle,lpos,
+#          dev,path,file,width,height,units,dpi)
+# Arguments
+#   dataframe	dataframe with the data to plot
+#   xvar       X-Variable 
+#               *1: only one X-Variable allowed
+#               see plot(), points(), lines()
+#
+#   yvars      Y-Variable(s) 
+#               *1: one Y-Variable, lvar will be used to define XY-lines and legend entry
+#               *2: multiple Y-Variables, they appear as XY-lines (or ploints) and legend entry
+#               see plot(), points(), lines()
+#
+#   lvar       Legend-Variables *1, one XY-line (or points) for each value of ...
+#                see legend()
+#
+#   byvar      By-Variable *1, one plot (or file) for each value of ...
+#
+#   pvar       Panel-Variable *1, one plot for each value of ... 
+#                see op = par(mfrow=...)
+#
+#   svar       Symbol-Variable *1, defines type of plot (cf. plot)
+#
+#   pmar       Margins (lines) of Panels (bottom, left, top, right, short bottom, short top)
+# 
+#   type       "l"=line, "p"=points, "b"=both 
+#   lty        linetype
+#   pch=pch        symbol
+#   colorlist  list of colors used for the XY-lines (or points)
+#   plottitle  Title of the plot, value of By-Variable will be added if used 
+#   xlab       Title of the X-Axis
+#   ylab       Title of the Y-Axis, 
+#                if multiple Y-Variable are plotted, name of Y-Variable will be added
+#              see plot(), points(), lines()
+#
+#   ltitle     Title of the Legend
+#   lpos       Position of the Legend
+#              see legend()
+#   
+#   dev        Device to show or save plots
+#              "screen"  plots will be shown in R Graphics window 
+#                 make shure to have set History > Aufzeichnen before starting
+#              "png"     plots will be saved into PNG files
+#              "eps"     plots will be saved into Postscript files
+#                        width and height are always in cm, dpi is not considered
+#   path       Path-name to save the graphic-files. Has to end with "/"
+#   file       First letters of the filenames, names of first yvar and values of the By-Variable and ".png" will be added
+#   width,height,units,dpi: properties of the graphic files
+#              see png()
+#
+#   printnames TRUE=Names of all Variables in the dataframe will be printed
+#              FALSE=...will not be printed.
+#
+# Explanation
+#   *1) string with the name of the column in the dataframe to be used as ...
+#   *2) string with the name of the column in the dataframe to be used as ...
+#       or list of string with the names of columns to be used as .. 
+#
+# Version 4
+#    
+# Author
+#   Peter Waldner, WSL, 2011
+# TODO
+# - tvar = type variable instead of svar
+# - svar = symbol variable instead of type
+# - linie = "0,0 7,7 col=blue lty=1", "1to1",
+# - type = default depending on xvar varname, value range, datatype
+# - lpos = "none"
+# - colorlist gradient adapting to number of litems
+# - casesensitiv = TRUE, tolower, toupper
+
+# Defaults
+# c("black","grey24","darkblue","blue","cornflowerblue","deepskyblue","cyan4","darkolivegreen",   "darkgreen","forestgreen","green","chartreuse","chocolate","chocolate4","brown",    "gold4","gold","darkorange","tomato","orangered","orangered3","red","red4","violetred","violet",   "violetred4","magenta","purple","hotpink")
+plotby <- function (
+   d, xvar, yvars, 
+   lvar = "", 
+   byvar = "", 
+   pvar = "",
+   svar = "",
+   pmar = c(par("mar"),2.1,2.1),
+   type = "o", lty=1, pch=16, 
+   colorlist = c("black","darkblue","blue","cyan4","darkolivegreen",
+   "green","chartreuse","brown",
+   "darkorange","red","violet",
+   "magenta","purple","black","darkblue","blue","cyan4","darkolivegreen",
+   "green","chartreuse","brown",
+   "darkorange","red","violet",
+   "magenta","purple"),
+   plottitle = "", xlab = "auto", ylab = "auto", 
+   ltitle = "", lpos = "topleft", 
+   dev="screen",path = ifelse(exists("loc"),paste(loc,"png/",sep=""),""), 
+   file = "", width = 15, height = 15, units = "cm", dpi=600,
+   printnames=FALSE,
+   linex=NA,liney=NA,linelty=1,
+   ncol=1,
+   ...)
+{
+  # init adjustments
+  typeori=type
+  marori =pmar[1:4]
+  # op = par(c(1.0,4.1,4.1,4.1))  
+  # backup default layout settings
+  def.par = par(no.readonly=TRUE)
+
+  # print d
+  if (printnames==TRUE){
+  print(names(d))
+  }
+  # subset d (safe memory)
+  vars = c(xvar, yvars)
+  if (!(lvar == "")) vars = c(vars,lvar)
+  if (!(byvar == "")) vars = c(vars,byvar)
+  if (!(pvar == "")) vars = c(vars,pvar)
+  if (!(svar == "")) vars = c(vars,svar)
+  d = d[,vars]
+  
+  # path
+  if (substr(path,nchar(path),nchar(path))=="/" | nchar(path)==0) 
+  {path;} else
+  {path=paste(path,"/",sep="");}
+  # substr(path,1,nchar(path)-1)
+  print(path)
+  
+  # if byvar
+  if (byvar == "") 
+  {
+    
+    # init device
+    if (dev == "png") 
+    { 
+      png(paste(path,file,"_",yvars[1],".png",sep=""),width=width,height=height,units=units,res=dpi)
+      print(paste(path,file,"_",yvars[1],".png",sep=""));
+    }
+    if (dev == "eps")
+    {
+      postscript(file=paste(path,file,"_",yvars[1],".eps",sep=""), 
+	     width = width*0.394, height = height*0.394, family="Helvetica",horizontal=FALSE);
+      print(paste(path,file,"_",yvars[1],".eps",sep=""));
+    }
+    
+    # no panels
+    # ---
+    if ((pvar == ""))
+    {
+
+       op = par(mar=marori)
+
+    #->
+    #
+    if (lvar == "")
+    {
+      # no sort data
+      d = d[order(d[,xvar]),]
+    }
+    else
+    {
+      # sort data
+      d = d[order(d[,lvar],d[,xvar]),]
+    }
+
+    # init litem
+    ilitem = 0
+    
+    # axis range
+    xlims = range(d[,xvar], na.rm=TRUE)
+    ylims = range(d[,yvars], na.rm=TRUE)
+    
+    # xlab
+	 if (xlab=="auto") {
+	    if (xvar == "t" | xvar == "year") xlabtext = "" else xlabtext = xvar
+	 }
+	 else {xlabtext=xlab}
+	 # ylab
+    if (ylab=="auto") {
+       ylabtext=paste(yvars,collapse=",");
+    }
+    else {ylabtext=ylab;}
+    # plot frame
+    plot(xlims, ylims, type="n", 
+       main=paste(plottitle), 
+       ylab=ylabtext,xlab=xlabtext,
+       ...)
+    
+    # loop over yvars
+    for (yvar in yvars)
+    {
+      # if lvar
+      if (lvar=="")
+      {
+        # legend item counter
+        ilitem = ilitem + 1
+        
+
+        # svar
+        if (!(svar == ""))
+        {
+          sval = unique( d[,svar] )[1]
+          if (!(is.na(sval))) type = as.character(sval)
+        }
+
+        # plot line
+        lines(d[,xvar],
+              d[,yvar],
+              type=type, lty=lty, col=colorlist[ilitem], pch=pch)
+        # if yvars
+        if (length(yvars) == 1)
+        {
+          # no legend item
+        }
+        else
+        {
+          # yvar legend
+          litem = as.character(yvar)
+          # add to litems
+          if (ilitem == 1) { litems = litem} 
+          if (ilitem >1 )  { litems = c(litems,litem) }
+        }
+      } # endif no lvar
+      else
+      {
+        # loop over uniqe(lvar)
+        lvals = unique(d[,lvar])
+        for (ilval in 1:length(lvals))
+        {
+          lval = lvals[ilval]
+
+          # legend item counter
+          ilitem = ilitem +1
+          
+          # svar
+          if (!(svar == ""))
+          {
+            sval = unique( d[d[,lvar] == lval,svar] )[1]
+            if (!(is.na(sval))) type = as.character(sval)
+          }
+          
+          # plot line
+          lines(d[d[,lvar] == lval,xvar],
+                d[d[,lvar] == lval,yvar],
+                type=type, lty=lty, col=colorlist[ilitem],pch=pch)
+          
+          # if yvars
+          if (length(yvars) == 1)
+          {
+            # lvar legend item
+            litem = as.character(lval)
+            # add to litems
+            if (ilitem == 1) {litems = litem} else { litems = c(litems,litem) }
+          } # endif yvars
+          else
+          {
+            # yvars lvar legend item
+            litem = paste(as.character(yvar), as.character(lval))
+            # add to litems
+          if (ilitem == 1) {litems = litem} 
+          if (ilitem >1 )  { litems = c(litems,litem) }
+          }
+        } # end loop lvar
+      } # endif lvar
+    } # end loop yvars
+    # create legend
+    if (!lvar == "" | !length(yvars) == 1 )
+    {
+      if (paste(ltitle,lvar) == " ")
+      {
+        legend(lpos, litems, col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+      if (!(paste(ltitle,lvar) == " "))
+      {
+        legend(lpos, litems, title=paste(ltitle, lvar), col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+    }
+    
+    # Lines
+	 lines(linex,liney,linelty,type="l")
+
+    
+    #
+    #->
+
+    } # end no panels
+
+    # panels
+    # ---
+    if (!(pvar == ""))
+    {
+      pvals = unique(d[,pvar])
+      # a) with panels
+      # op = par(mfrow=c(length(pvals),1))
+
+      # b) with layout
+      # number of panels
+      npval=length(pvals)
+      # current margin settings (inches and lines)
+      op = par(mar=marori)
+      layout(1)
+      pin = par("pin")
+      mai = par("mai")
+      mar = par("mar")
+      pmai = mai[1]/mar[1]*pmar;
+      # calculate height of diagram in inches
+      diai = (pin[2] - ((npval)*pmai[6]+(npval-1)*pmai[5]+pmai[1]))/npval;
+      # relative height of panels 1, i, npval
+      r1pin2=(pmai[6]+diai+pmai[5])/pin[2];
+      ripin2=(pmai[6]+diai+pmai[5])/pin[2];
+      rnpin2=(pmai[6]+diai+pmai[1])/pin[2];
+      # panel heights
+      if (npval==1) {pheights=rnpin2;}
+      if (npval==2) {pheights=c(r1pin2,rnpin2);}
+      if (npval >2) {pheights=c(r1pin2,rep(ripin2,npval-2),rnpin2);}
+      
+      # apply layout settings
+      ndia = layout(matrix(1:npval,npval,1),heights=pheights)
+      # layout.show(ndia)
+      
+      # loop pval
+      for (ipval in 1:length(pvals))
+      {
+        pval = pvals[ipval]
+        # Margins (bottom, left, top, right)
+        # top panel:          cut bottom, no x-axis
+        if (ipval==1)                      {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[5]; xaxt="n"}
+        # intermediate panel: cut top and bottom, no x-axis
+        if (ipval>1 & ipval<length(pvals)) {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[5]; xaxt="n"}
+        # bottom panel:       cut top, with x-axis
+        if (ipval==length(pvals))          {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[1]; xaxt="t"}
+        op = par(mar=mar, xaxt=xaxt)
+
+    #-->
+    #
+
+    if (lvar == "")
+    {
+      # sort data
+      d = d[order(d[,pvar],d[,xvar]),]
+    }
+    else
+    {
+      # sort data
+      if (is.character(d[,lvar]))
+      {
+        d = d[order(d[,pvar],d[,lvar],d[,xvar]),]
+      }
+      else
+      {
+        d = d[order(d[,pvar],-d[,lvar],d[,xvar]),]
+      }
+    }
+
+    # init litem
+    ilitem = 0
+    
+    # axis range
+    xlims = range(d[,xvar], na.rm=TRUE)
+    ylims = range(d[,yvars], na.rm=TRUE)
+    
+        # xlab
+	     if (xlab=="auto") {
+	        if (xvar == "t" | xvar == "year") xlabtext = "" else xlabtext = xvar
+	     }
+	     else {xlabtext=xlab}
+	     # ylab
+        if (ylab=="auto") {
+           ylabtext=paste(yvars,collapse=",");
+        }
+        else {ylabtext=ylab;}
+	     
+	     # plot frame
+	     plot(xlims, ylims, type="n", 
+	        main=paste(plottitle), 
+	        ylab=ylabtext,xlab=xlabtext,
+	        ...)
+	     
+
+    
+    # loop over yvars
+    for (yvar in yvars)
+    {
+      # if lvar
+      if (lvar=="")
+      {
+        # legend item counter
+        ilitem = ilitem + 1
+        
+
+        # svar
+        type=typeori
+        if (!(svar == ""))
+        {
+          sval = unique( d[d[,pvar] == pval,svar] )[1]
+          if (!(is.na(sval))) type = as.character(sval)
+        }
+
+        # plot line
+        lines(d[d[,pvar] == pval,xvar],
+              d[d[,pvar] == pval,yvar],
+              type, lty, col=colorlist[ilitem], pch=pch)
+        # if yvars
+        if (length(yvars) == 1)
+        {
+          # no legend item
+        }
+        else
+        {
+          # yvar legend
+          litem = as.character(yvar)
+          # add to litems
+          if (ilitem == 1) { litems = litem} 
+          if (ilitem >1 )  { litems = c(litems,litem) }
+        }
+      } # endif no lvar
+      else
+      {
+        # loop over uniqe(lvar)
+        lvals = unique(d[,lvar])
+        for (ilval in 1:length(lvals))
+        {
+          lval = lvals[ilval]
+
+          # legend item counter
+          ilitem = ilitem +1
+          
+          # svar
+          type=typeori
+          if (!(svar == ""))
+          {
+            sval = unique( d[d[,pvar] == pval & d[,lvar] == lval,svar] )[1]
+            if (!(is.na(sval))) type = as.character(sval)
+          }
+          
+          # plot line
+          lines(d[d[,pvar] == pval & d[,lvar] == lval,xvar],
+                d[d[,pvar] == pval & d[,lvar] == lval,yvar],
+                type=type, lty=lty, col=colorlist[ilitem],pch=pch)
+          
+          # if yvars
+          if (length(yvars) == 1)
+          {
+            # lvar legend item
+            litem = as.character(lval)
+            # add to litems
+            if (ilitem == 1) {litems = litem} else { litems = c(litems,litem) }
+          } # endif yvars
+          else
+          {
+            # yvars lvar legend item
+            litem = paste(as.character(yvar), as.character(lval))
+            # add to litems
+          if (ilitem == 1) {litems = litem} 
+          if (ilitem >1 )  { litems = c(litems,litem) }
+          }
+        } # end loop lvar
+      } # endif lvar
+    } # end loop yvars
+    
+    # create legend
+    if (!lvar == " " | !length(yvars) == 1 )
+    {
+      if (paste(ltitle,lvar) == " ")
+      {
+        legend(lpos, litems, col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+      if (!(paste(ltitle,lvar) == " "))
+      {
+        legend(lpos, litems, title=paste(ltitle, lvar), col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+    }
+    
+    # Lines
+	 # lines(linex,liney,linelty,type="l")
+
+    
+    #
+    #-->
+      } # end loop pvals
+      # ---
+    } # end if panels
+
+    # end device
+    if (dev == "png" | dev == "eps") dev.off()
+
+
+  } # end if no byvars
+  
+  # if byvars
+  if (!(byvar == ""))
+  {
+
+    # no panels
+    # ---
+    if ((pvar == ""))
+    {
+
+       op = par(mar=marori);
+
+    #->
+    #
+
+    # sort
+    if (lvar == "")
+    {
+      # sort data byvar
+      d = d[order(d[,byvar],d[,xvar]),]
+    }
+    else
+    {
+      # sort data byvar, lvar
+      d = d[order(d[,byvar],d[,lvar],d[,xvar]),]
+    }
+ 
+    # loop over byvar
+    byvals = unique(d[,byvar])
+    for (ibyval in 1:length(byvals))
+    {
+      byval = byvals[ibyval]
+      if (!(is.numeric(byval)))
+      {byval = as.character(byval)}
+      if (printnames==TRUE){
+      print(byval)
+      }
+     
+      # init device
+      if (dev == "png") 
+      { 
+        png(paste(path,file,"_",yvars[1],"_",byval,".png",sep=""),width=width,height=height,units=units,res=dpi)
+        print(paste(path,file,"_",yvars[1],".png",sep=""));
+      }
+      if (dev == "eps")
+      {
+        postscript(file=paste(path,file,"_",yvars[1],"_",byval,".eps",sep=""), 
+	       width = width*0.394, height = height*0.394, family="Helvetica",horizontal=FALSE);
+        print(paste(path,file,"_",yvars[1],"_",byval,".eps",sep=""));
+      }
+
+      # init litem
+      ilitem = 0
+      
+      # axis range
+      xlims = range(d[,xvar], na.rm=TRUE)
+      ylims = range(d[,yvars], na.rm=TRUE)
+      
+        # xlab
+	     if (xlab=="auto") {
+	        if (xvar == "t" | xvar == "year") xlabtext = "" else xlabtext = xvar
+	     }
+	     else {xlabtext=xlab}
+	     
+	     # ylab
+	     if (ylab=="auto") {
+	        ylabtext=paste(yvars,collapse=",");
+	     }
+	     else {ylabtext=ylab;}
+	     
+	     # plot frame
+	     plot(xlims, ylims, type="n", 
+	        main=paste(plottitle,byval), 
+	        ylab=ylabtext, xlab=xlabtext, 
+	        ...)
+      
+      # loop over yvars
+      for (yvar in yvars)
+      {
+        # if lvar
+        if (lvar == "")
+        {
+          # legend item counter
+          ilitem = ilitem + 1
+          
+          # svar
+          type=typeori
+          if (!(svar == ""))
+          {
+            sval = unique( d[d[,byvar] == byval,svar] )[1]
+            if (!(is.na(sval))) type = as.character(sval)
+          }
+          
+          # plot line
+          lines(d[d[,byvar] == byval,xvar],
+                d[d[,byvar] == byval,yvar],
+                type=type, lty=lty, col=colorlist[ilitem], pch=pch)
+          
+          # if yvars
+          if (length(yvars) == 1)
+          {
+            # no legend item
+          }
+          else
+          {
+            # yvar legend
+            litem = as.character(yvar)
+            # add to litems
+            if (ilitem == 1) {litems = litem} 
+            if (ilitem >1 )  { litems = c(litems,litem) }
+          }
+        } # endif no lvar
+        if (!(lvar == ""))
+        {
+          # loop over uniqe(lvar)
+          lvals = unique(d[,lvar])
+          for (ilval in 1:length(lvals))
+          {
+            lval = lvals[ilval]
+            
+            # legend item counter
+            ilitem = ilitem +1
+            
+            # svar
+            type=typeori
+            if (!(svar == ""))
+            {
+              sval = unique( d[d[,byvar] == byval & d[,lvar] == lval,svar] )[1]
+              if (!(is.na(sval))) type = as.character(sval)
+            }
+
+            # plot line
+            lines(d[d[,byvar] == byval & d[,lvar] == lval,xvar],
+                  d[d[,byvar] == byval & d[,lvar] == lval,yvar],
+                  type=type, lty=lty, col=colorlist[ilitem],pch=pch)
+            
+            # if yvars
+            if (length(yvars) == 1)
+            {
+              # lval legend item
+              litem = as.character(lval)
+              # add to litems
+              if (ilitem == 1) {litems = litem} 
+              if (ilitem >1 )  { litems = c(litems,litem) }
+            } # endif yvars
+            else
+            {
+              # yvars lval legend item
+              litem = paste(as.character(yvar), as.character(lval))
+              # add to litems
+              if (ilitem == 1) {litems = litem} 
+              if (ilitem >1 )  { litems = c(litems,litem) }
+            }
+          } # end loop lvar
+        } # endif lvar
+      } # end loop yvars
+      # create legend
+      if (paste(ltitle,lvar) == " ")
+      {
+        legend(lpos, litems, col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+      if (!(paste(ltitle,lvar) == " "))
+      {
+        legend(lpos, litems, title=paste(ltitle, lvar), col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+
+      # Lines
+      # lines(xline,yline,ltyline,type="l")
+
+      # init device
+      if (dev == "png" | dev == "eps") dev.off()
+
+    } # end loop byvar
+
+    #->
+    } # end no panels
+
+
+    # panels
+    # ---
+    if (!(pvar == ""))
+    {
+      # equal pvals for all byvals
+      # pvals = unique(d[,pvar])
+      # print(length(pvals))
+      # op = par(mfrow=c(length(pvals),1))
+      
+    #->
+    #
+
+    # sort
+    if (lvar == "")
+    {
+      # sort data byvar
+      d = d[order(d[,byvar],d[,xvar]),]
+    }
+    else
+    {
+      # sort data byvar, lvar
+      if (is.character(d[,lvar]))
+      {
+        d = d[order(d[,byvar],d[,lvar],d[,xvar]),]
+      } 
+      else 
+      {
+        d = d[order(d[,byvar],-d[,lvar],d[,xvar]),]
+      }
+    }
+ 
+    # loop over byvar
+    byvals = unique(d[,byvar])
+    for (ibyval in 1:length(byvals))
+    {
+      byval = byvals[ibyval]
+      if (!(is.numeric(byval)))
+      {byval = as.character(byval)}
+      if (printnames==TRUE){
+      print(byval)
+      }
+     
+      # init device
+      if (dev == "png") png(paste(path,file,"_",yvars[1],"_",byval,".png",sep=""),width=width,height=height,units=units,res=dpi)
+
+      # individual pvals for each byval
+      pvals = unique(d[d[,byvar] == byval,pvar])
+      # a) with panels
+      # op = par(mfrow=c(length(pvals),1))
+      # b) with layout
+      # number of panels
+      npval=length(pvals)
+      # current margin settings (inches and lines)
+      op = par(mar=marori)
+      layout(1)
+      pin = par("pin")
+      mai = par("mai")
+      mar = par("mar")
+      pmai = mai[1]/mar[1]*pmar;
+      # calculate height of diagram in inches
+      diai = (pin[2] - ((npval)*pmai[6]+(npval-1)*pmai[5]+pmai[1]))/npval;
+      # relative height of panels 1, i, npval
+      r1pin2=(pmai[6]+diai+pmai[5])/pin[2];
+      ripin2=(pmai[6]+diai+pmai[5])/pin[2];
+      rnpin2=(pmai[6]+diai+pmai[1])/pin[2];
+      # panel heights
+      if (npval==1) {pheights=rnpin2;}
+      if (npval==2) {pheights=c(r1pin2,rnpin2);}
+      if (npval >2) {pheights=c(r1pin2,rep(ripin2,npval-2),rnpin2);}
+      
+      # apply layout settings
+      ndia = layout(matrix(1:npval,npval,1),heights=pheights)
+      print(pmar)
+      print(pheights)
+      # layout.show(ndia)
+
+      # loop pval
+      for (ipval in 1:length(pvals))
+      {
+        pval = pvals[ipval]
+        # Margins (bottom, left, top, right)
+        mar = marori
+        # top panel:          cut bottom, no x-axis
+        if (ipval==1)                      {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[5]; xaxt="n"}
+        # intermediate panel: cut top and bottom, no x-axis
+        if (ipval>1 & ipval<length(pvals)) {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[5]; xaxt="n"}
+        # bottom panel:       cut top, with x-axis
+        if (ipval==length(pvals))          {mar=marori; mar[3]=pmar[6]; mar[1]=pmar[1]; xaxt="t"}
+        op = par(mar=mar, xaxt=xaxt)
+
+      #->
+      #
+
+      # init litem
+      ilitem = 0
+      
+      # axis range
+      xlims = range(d[,xvar], na.rm=TRUE)
+      ylims = range(d[,yvars], na.rm=TRUE)
+      
+      # xlab
+      if (ylab == "auto")
+      {
+         if (xvar == "t" | xvar == "year") xlabtext = "" else xlabtext = xvar
+      }
+      else {xlabtext=xlab}
+      # ylab
+      if (ylab == "auto")
+      {
+         ylabtext=paste(yvars, collapse = ", ");
+      }
+      else {ylabtext=ylab;}
+      # plot frame
+      plot(xlims, ylims, type="n", 
+         main=paste(plottitle, byval, paste("(",pvar," ", pval,")",sep="")), 
+         ylab=ylabtext,xlab=xlabtext,
+         ...)
+      
+      # loop over yvars
+      for (yvar in yvars)
+      {
+        # if lvar
+        if (lvar == "")
+        {
+          # legend item counter
+          ilitem = ilitem + 1
+          
+          # svar
+          type = typeori
+          if (!(svar == ""))
+          {
+            sval = unique( d[d[,byvar] == byval & d[,pvar] == pval,svar] )[1]
+            if (!(is.na(sval))) type = as.character(sval)
+          }
+          
+          # plot line
+          lines(d[d[,byvar] == byval & d[,pvar] == pval,xvar],
+                d[d[,byvar] == byval & d[,pvar] == pval,yvar],
+                type=type, lty=lty, col=colorlist[ilitem], pch=pch)
+          
+          # if yvars
+          if (length(yvars) == 1)
+          {
+            # no legend item
+          }
+          else
+          {
+            # yvar legend
+            litem = as.character(yvar)
+            # add to litems
+            if (ilitem == 1) {litems = litem} 
+            if (ilitem >1 )  { litems = c(litems,litem) }
+          }
+        } # endif no lvar
+        if (!(lvar == ""))
+        {
+          # loop over uniqe(lvar)
+          lvals = unique(d[,lvar])
+          for (ilval in 1:length(lvals))
+          {
+            lval = lvals[ilval]
+            
+            # legend item counter
+            ilitem = ilitem +1
+            
+            # svar
+            if (!(svar == ""))
+            {
+              sval = unique( d[d[,byvar] == byval & d[,pvar] == pval & d[,lvar] == lval,svar] )[1]
+              if (!(is.na(sval))) type = as.character(sval)
+            }
+
+            # plot line
+            lines(d[d[,byvar] == byval & d[,pvar] == pval & d[,lvar] == lval,xvar],
+                  d[d[,byvar] == byval & d[,pvar] == pval & d[,lvar] == lval,yvar],
+                  type=type, lty=lty, col=colorlist[ilitem],pch=pch)
+            
+            # if yvars
+            if (length(yvars) == 1)
+            {
+              # lval legend item
+              litem = as.character(lval)
+              # add to litems
+              if (ilitem == 1) {litems = litem} 
+              if (ilitem >1 )  { litems = c(litems,litem) }
+            } # endif yvars
+            else
+            {
+              # yvars lval legend item
+              litem = paste(as.character(yvar), as.character(lval))
+              # add to litems
+              if (ilitem == 1) {litems = litem} 
+              if (ilitem >1 )  { litems = c(litems,litem) }
+            }
+          } # end loop lvar
+        } # endif lvar
+      } # end loop yvars
+      # create legend
+      if (paste(ltitle,lvar) == " ")
+      {
+        legend(lpos, litems, col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+      if (!(paste(ltitle,lvar) == " "))
+      {
+        legend(lpos, litems, title=paste(ltitle, lvar), col=colorlist[1:length(litems)], lty=1, lwd=4, ncol=ncol)
+      }
+
+      # Lines
+      # lines(xline,yline,ltyline,type="l")
+
+      } # end loop pvals
+      #
+      #->
+
+      # init device
+      if (dev == "png") dev.off()
+
+    } # end loop byvar
+    #
+    #->
+
+    } # end if panels
+
+  } # end if byvar 
+  # normal borders
+  op = par(mar = marori; xaxt="t")
+  # no panels
+  op = par(mfrow = c(1,1))
+  # ??
+  op = par(def.par)
+  # ??
+  layout(1)
+
+} # end function      
+
+# plotby(clim,"t",c("tt","ttmin"), xlim=c(2000,2005))
+# plotby(clim,"t",c("tt","ttmin"), "mon",xlim=c(2000,2005), colorlist=1:30)
+# plotby(clim_dep,"t",c("rrBD","rrTF"), "","site", xlim=c(2000,2005), type="l", colorlist=1:30)
+# plotby(clim_dep,"t",c("rrBD","rrTF"), "mon","site", xlim=c(2000,2005), type="p", colorlist=1:30)
+# plotby(clim_dep,"t",c("rrBD"), "site", xlim=c(2000,2005), type="p", colorlist=1:30)
+# resf=cbind(resf,s="l")
+
+# plotby(resf,"t","no3","scenario","site",pvar="layer",svar="s",file="test")

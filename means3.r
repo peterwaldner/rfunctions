@@ -1,0 +1,148 @@
+################################################################################
+# means - Aggregate X-variables by groups of By-Variables
+#
+# Features
+#   one to multi Variables
+#   mean, min, max, n, 
+# 
+# Syntax
+#   means(dataframe,byvars,meanvars,minvars,maxvars,sumvars,nvars)
+# Arguments
+#   dataframe	dataframe with the data to plot
+#   byvars     names of variables defining the By-Groups
+#   meanvars       unweighted means
+#
+#   sufix      auto: output variables will get sufix with function name, e.g. treeheight_min
+#                    except functions mean and sum
+#              fun:  output variables will get sufix name anyway
+#   sep        characters between variable name and sufix 
+#
+# Example
+#   d1 = means(d,byvars=c("plac","year"),meanvars=c("treeheight","dbh"),nvars="dbh",sufix=TRUE))
+# 
+# Known Issues
+#   - date/time in byvars is converted to string and in vars to numeric
+
+
+# Auxiliary FUN functions
+
+  # number of non missing observations
+  n.obs <- function(x, na.rm=TRUE)
+  {
+     if(na.rm==TRUE) x <- na.omit(x)
+     if(class(x)=="data.frame") n=length(x[,1])
+     if(class(x)=="numeric") n=length(x)
+     if(!exists("n")) n=0
+     return(n)
+  }
+
+  # coefficient of variance
+  cv <- function(x, na.rm=TRUE) {
+     return(sd(x,na.rm=na.rm)/mean(x,na.rm=TRUE))
+  }
+  # quantiles
+  q25 <- function(x, na.rm=TRUE) { return(quantile(x,0.25,na.rm=na.rm)) }
+  q75 <- function(x, na.rm=TRUE) { return(quantile(x,0.75,na.rm=na.rm)) }
+  q10 <- function(x, na.rm=TRUE) { return(quantile(x,0.10,na.rm=na.rm)) }
+  q90 <- function(x, na.rm=TRUE) { return(quantile(x,0.90,na.rm=na.rm)) }
+
+
+# Main function
+means <- function (d,byvars,meanvars="",minvars="",maxvars="",sumvars="",nvars="",cvvars="", sdvars="",
+                   medianvars="", q25vars="", q75vars="", q10vars="", q90vars="",
+                   sufix="auto",sep="_",
+                   na.rm=TRUE,...) 
+{
+
+
+
+   # Function aggreg
+   aggreg <- function (d,byvars,vars,sufix="auto",sep="_",na.rm=TRUE,fsufix="", FUN="mean",...)
+   {
+      
+      if (max(nchar(vars))>0) 
+      {
+      	if (length(byvars)==1) {
+            d1 = aggregate(d[,vars],by=list(d[,byvars]),na.rm=na.rm,FUN=FUN, ...)
+         }
+      	if (length(byvars)>1) {
+            d1 = aggregate(d[,vars],by=as.list(d[,byvars]),na.rm=na.rm,FUN=FUN, ...)
+         }
+         if (sufix=="fun") {
+            names(d1) = c(byvars,paste(vars,fsufix,sep=sep))
+         }
+         else {
+            if (sufix=="auto") {
+               if (fsufix=="mean" | fsufix=="sum") {
+                  names(d1) = c(byvars,vars)
+               } else {
+                  names(d1) = c(byvars,paste(vars,fsufix,sep=sep))
+               }               
+            } else {
+               if (nchar(sufix)==0) {
+                  names(d1) = c(byvars,vars)
+               } else {
+                  names(d1) = c(byvars,paste(vars,sufix,sep=sep))
+               }               
+            }
+         }
+      }
+      else 
+      {
+         d1 = data.frame(unique(d[,byvars]))
+         names(d1) = c(byvars)
+      }
+      return(d1)
+   }
+   
+   # Function to aggregate and merge one aggregation type
+   mergeaggreg <- function(d,d2,byvars,vars,sufix=sufix,sep=sep,na.rm=na.rm,fsufix,FUN, ...)
+   {
+      if (!(vars[1]==""))
+      {
+         d1 = aggreg(d,byvars,vars,sufix=sufix, sep=sep,na.rm=na.rm, fsufix,FUN, ...)
+         d2 = merge(d2,d1,by=byvars,all=TRUE)
+         rm(d1)
+      }
+      
+      return(d2)
+   }
+   
+   # Start with byvars
+   d2 = unique(d[,byvars])
+   
+   # check that byvars are not all NA
+   for (i in 1:length(byvars))
+   {
+      byvar=byvars[i]
+      byval = unique(d2[,byvar])
+      if (length(byval)>1 | !min(is.na(byval)))
+      {
+        if (i==1) {byvars2=byvar;} else {byvars2=c(byvars2,byvar);}
+      }
+   }
+   
+   # Aggregate aggretation types
+   d2 = mergeaggreg(d,d2,byvars2,meanvars, sufix=sufix, sep=sep,na.rm=na.rm, fsufix="mean",FUN="mean", ...)
+   d2 = mergeaggreg(d,d2,byvars2,minvars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="min", FUN="min",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,maxvars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="max", FUN="max",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,sumvars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="sum", FUN="sum",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,nvars,    sufix=sufix, sep=sep,na.rm=na.rm, fsufix="n",   FUN="n.obs",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,cvvars,   sufix=sufix, sep=sep,na.rm=na.rm, fsufix="cv",  FUN="cv",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,sdvars,   sufix=sufix, sep=sep,na.rm=na.rm, fsufix="sd",  FUN="sd",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,medianvars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="median",  FUN="median",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,q25vars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="q25",  FUN="q25",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,q75vars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="q75",  FUN="q75",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,q10vars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="q10",  FUN="q10",   ...)
+   d2 = mergeaggreg(d,d2,byvars2,q90vars,  sufix=sufix, sep=sep,na.rm=na.rm, fsufix="q90",  FUN="q90",   ...)
+   
+   return(d2)
+}
+
+# Would be nice
+# - weighed means
+# - shorter names e.g. by instead of byvars (however, consistent with plotby.r)
+# - sufix default: sufix only if more than one function is used for a variable. 
+# - do calculations only if necessary (re-structure if/then)
+# - open list of arguments, use argument name as function if appropriate
+#   c.f. R-lang.html#Argument-evalutation: match.call(expand.dots=FALSE) ...

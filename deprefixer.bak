@@ -1,0 +1,39 @@
+#######################################################
+# deprefixer: values in columns are arranged into lines
+# Details
+# - grouping:  rows with same values in the byvars-variable are merged into one row
+# - columns:   columns that are rearranged have combination <prefix><sep><vars> as names 
+# - new lines: the column <sid> contains the <prefix>, 
+# - new column: the columns <vars> the values
+# Arguments
+#	d 		      input dataset
+#	byvars      variables used to identify an output dataset 
+#	sid    		the name of the column with the values of the prefixes (text variable)
+#  prefixes    a list of prefix, e.g. c("a","b")
+#	vars   		a list of variables names after removel of prefixes 
+#  idvars      variables assumed to be the same for whole group (only one value is taken)
+#  sep         Text between prefix and variable name 
+
+deprefixer = function(d,byvars,prefixes,vars,idvars=c(""),sid="VARNAME",sep="_")
+{
+     # keys and others
+     iprefixes=0
+     d0=subset(d[,c(byvars,idvars)]);
+     for (prefix1 in prefixes)
+     {
+        iprefixes=iprefixes+1;
+        d1=cbind(d0,
+            SID=prefix1); 
+        names(d1)[length(names(d1))]=sid;
+        
+        for (var in vars)
+        {
+          d2=d[,prefix(prefix1,var,sep=sep)]; 
+          d1=cbind(d1,d2); 
+          names(d1)[length(names(d1))]=var;
+        }
+        
+        # collect
+        if (iprefixes==1) {d3=d1;} else {d3=rbind(d3,d1);}
+     }
+}

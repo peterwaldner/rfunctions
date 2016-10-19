@@ -1,0 +1,14 @@
+#################################################################
+# n.obs - function to count number of non-missing observation
+#
+# Author: Alan Haynes
+#
+# Usage: e.g. to count number of observations in y1,y2 for groups of x1,x2
+#   dat3 = aggregate(dat[,c("y1","y2"),by=list(dat$x1,dat$x2),n.obs)
+#
+
+
+   n.obs <- function(x, na.rm=TRUE){
+	     if(na.rm==TRUE) x <- na.omit(x)
+	          if(class(x)=="data.frame") length(x[,1])
+	          else if(class(x)=="numeric") length(x)}
